@@ -59,7 +59,7 @@ module spi_peripheral(
 always @(posedge clk or negedge rst) begin
 
     // check if rst is 0, if so we need to empty things out 
-    if(rst==0) begin
+    if(!rst) begin
          shift_regin<= 8'b0;  
          count<= 4'b0;   
          reg_address<= 7'b0;   
@@ -94,6 +94,7 @@ always @(posedge clk or negedge rst) begin
                     shift_regin <= 8'b0;
                     reg_address <= 7'b0;
                     rw_bit <= 1'b0; // Default to write operation
+                   
        end
        end
        // recieving state
@@ -113,13 +114,24 @@ always @(posedge clk or negedge rst) begin
                         
                             count <= count + 1;
                         end
-                        if( count == 4'd7) begin 
+                        if( count == 4'd8) begin 
                             reg_address<=  shift_regin[6:0];
                             
                          end
+                        if( count== 4'd15) begin
                             
+                            state<= LATCH;
+                            
+                        end
                         // once saturated
-                        if (count== 4'd15) begin
+
+  end
+  
+  
+  end
+  
+  LATCH: begin
+
                             if( rw_bit==1'b1) begin // check if we read or write
                                 case(reg_address)
                                     7'd0: en_reg_out_7_0 <= shift_regin; 
@@ -129,11 +141,10 @@ always @(posedge clk or negedge rst) begin
                                     7'd4: pwm_duty_cycle <= shift_regin; 
                                endcase
                                end
-                        end
                         
                         state<= IDLE;
-              end
-  end
+   
+   end
   
   endcase
   

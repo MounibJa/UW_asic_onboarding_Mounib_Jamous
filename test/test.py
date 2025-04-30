@@ -253,6 +253,9 @@ async def test_pwm_freq(dut):
         if 2970<=frequencywanted<=3030:
             print(f"fequency met the requested range: at bit {j} the frequency was: {frequencywanted} ")
         # turning off uio channels
+        else:   
+            print(f"frequency was not in the required range: at at bit {j} the frequency was: {frequencywanted}")
+
         ui_in_val= await send_spi_transaction(dut, 1, 0x01, 0)
         ui_in_val= await send_spi_transaction(dut, 1, 0x03, 0)
     print("freuency results for uo:")
@@ -264,6 +267,8 @@ async def test_pwm_freq(dut):
 
         if 2970<=frequencywanted<=3030:
             print(f"fequency met the requested range: at bit {j} the frequency was: {frequencywanted} ")
+        else:
+            print(f"frequency was not in the required range: at at bit {j} the frequency was: {frequencywanted}")
         # turning off uo channels
         ui_in_val= await send_spi_transaction(dut, 1, 0x00, 0)
         ui_in_val= await send_spi_transaction(dut, 1, 0x02, 0)

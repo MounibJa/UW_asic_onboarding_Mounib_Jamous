@@ -1,7 +1,11 @@
 # info.yaml  
 title: "ASIC Onboarding Project - Mounib Jamous"  
 author: "Mounib Jamous"  
+discord:      "mage557"      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
 description: "SPI-controlled PWM peripheral for Tiny Tapeout."  
+language:     "Verilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
+clock_hz:     0       # Clock frequency in Hz (or 0 if not applicable)
+tiles: "1x1"          # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 6x2 or 8x2
 top_module: "tt_um_uwasic_onboarding_mounib_jamous"  # Match your top module name  
 source_files:  
   - "spi_peripheral.v"
@@ -39,3 +43,6 @@ pinout:
   uio[5]: "OUT_D"
   uio[6]: "OUT_E"
   uio[7]: "OUT_F"
+
+  # Do not change!
+  yaml_version: 6

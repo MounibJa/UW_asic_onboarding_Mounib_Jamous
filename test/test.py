@@ -300,12 +300,15 @@ async def test_pwm_duty(dut):
     ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x00)
     for i in range(3):
         if i==0:
+            finalduty=0
             print( "Duty 0% tests:")
             ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x00)
         elif i==1:
+            finalduty=50
             print( "Duty 50% tests:")
             ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x80)
         elif i==2:
+            finalduty=100
             print( "Duty 100% tests:")
             ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0xFF)
         #replication of frequency tests but this time caring for duty instead of frequency
@@ -315,7 +318,7 @@ async def test_pwm_duty(dut):
             ui_in_val= await send_spi_transaction(dut, 1, 0x03, 1<<j)
             extra, dutywanted = await PWM_sampling(dut, dut.uio_out, j, 4)
 
-            print(f"duty being tested for is 0% : at bit {j} the duty was: {dutywanted}% ")
+            print(f"duty being tested for is {finalduty}% : at bit {j} the duty was: {dutywanted}% ")
             ui_in_val= await send_spi_transaction(dut, 1, 0x01, 0)
             ui_in_val= await send_spi_transaction(dut, 1, 0x03, 0)
         
@@ -325,7 +328,7 @@ async def test_pwm_duty(dut):
             ui_in_val= await send_spi_transaction(dut, 1, 0x02, 1<<j)
             frequencywanted, extra = await PWM_sampling(dut, dut.uo_out, j, 4)
 
-            print(f"duty being tested for is 0% : at bit {j} the duty was: {dutywanted}% ")
+            print(f"duty being tested for is {finalduty}% : at bit {j} the duty was: {dutywanted}% ")
             ui_in_val= await send_spi_transaction(dut, 1, 0x00, 0)
             ui_in_val= await send_spi_transaction(dut, 1, 0x02, 0)
 

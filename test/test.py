@@ -8,6 +8,8 @@ from cocotb.triggers import ClockCycles
 from cocotb.types import Logic
 from cocotb.types import LogicArray
 
+
+
 async def await_half_sclk(dut):
     """Wait for the SCLK signal to go high or low."""
     start_time = cocotb.utils.get_sim_time(units="ns")
@@ -21,6 +23,79 @@ async def await_half_sclk(dut):
 def ui_in_logicarray(ncs, bit, sclk):
     """Setup the ui_in value as a LogicArray."""
     return LogicArray(f"00000{ncs}{bit}{sclk}")
+async def PWM_sampling(dut, signal, channel, cycles):
+    """
+    Sample PWM signal
+    
+    Parameters:
+    - signal: signal we are looking at
+    - channel: the PWM bit channel we want 
+    - cycles: the number of cycles we are going to measure
+    """
+
+    def singlebit(val, bit):
+        return (int(val) >> bit) & 1
+
+    # I miss C++ already
+    const_timeout = 436700  # This was just assumed to be 1/frequency*0.99 plus an extra 100k for safety
+    rising_edges = 0
+    hightotal = 0
+    periodtotal = 0
+    start_time = cocotb.utils.get_sim_time(units='ns')
+
+    # Check for if it's 100% or 0% in addition, allows us to start the test when it's done being 0 and starting high
+
+    while singlebit(signal.value, channel) == 1:
+        await RisingEdge(dut.clk)
+        if cocotb.utils.get_sim_time(units="ns") - start_time > const_timeout:
+            return 0.0, 100.0
+
+    while singlebit(signal.value, channel) == 0:
+        await RisingEdge(dut.clk)
+        if cocotb.utils.get_sim_time(units="ns") - start_time > const_timeout:
+            return 0.0, 0.0
+
+    startingtime = cocotb.utils.get_sim_time(units="ns")
+
+    while rising_edges < cycles:
+        # Wait for when the bit is high until it no longer is
+        while singlebit(signal.value, channel) == 1:
+            await RisingEdge(dut.clk)
+            # For the sake of redundancy
+            if cocotb.utils.get_sim_time(units="ns") - startingtime > const_timeout:
+                return 0.0, 100.0
+
+        # Get time when it fell
+        fall = cocotb.utils.get_sim_time(units="ns")
+
+        # Wait for when the bit is low
+        while singlebit(signal.value, channel) == 0:
+            await RisingEdge(dut.clk)
+            # For redundancy
+            if cocotb.utils.get_sim_time(units="ns") - startingtime > const_timeout:
+                return 0.0, 0.0
+
+        # Get time when it rose back up
+        rise = cocotb.utils.get_sim_time(units="ns")
+        rising_edges += 1
+
+        # Time when signal was high
+        timehigh = fall - startingtime
+        # Period
+        period = rise - startingtime
+
+        # Finding total time it was high by adding high of each test iteration
+        hightotal += timehigh
+        # Period
+        periodtotal += period
+        startingtime = cocotb.utils.get_sim_time(units="ns")
+
+    avghigh = hightotal / cycles
+    avgperiod = periodtotal / cycles
+
+    return 1e9 / avgperiod, 100 * (avghigh / avgperiod)
+
+
 
 async def send_spi_transaction(dut, r_w, address, data):
     """
@@ -152,10 +227,102 @@ async def test_spi(dut):
 @cocotb.test()
 async def test_pwm_freq(dut):
     # Write your test here
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+
+
+    dut._log.info("Reset")
+    dut.ena.value = 1
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+    # using 50% for ease of testing frequency
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x80)
+    print ("frequency results for uio :")
+    for j in range(8):
+        #turning on uio channels
+        ui_in_val= await send_spi_transaction(dut, 1, 0x01, 1 << j)
+        ui_in_val= await send_spi_transaction(dut, 1, 0x03, 1<<j)
+        frequencywanted, extra = await PWM_sampling(dut, dut.uio_out, j, 4)
+
+        if 2970<=frequencywanted<=3030:
+            print(f"fequency met the requested range: at bit {j} the frequency was: {frequencywanted} ")
+        # turning off uio channels
+        ui_in_val= await send_spi_transaction(dut, 1, 0x01, 0)
+        ui_in_val= await send_spi_transaction(dut, 1, 0x03, 0)
+    print("freuency results for uo:")
+    for j in range(8):
+        # turning on uo channels
+        ui_in_val= await send_spi_transaction(dut, 1, 0x00, 1 << j)
+        ui_in_val= await send_spi_transaction(dut, 1, 0x02, 1<<j)
+        frequencywanted, extra = await PWM_sampling(dut, dut.uo_out, j, 4)
+
+        if 2970<=frequencywanted<=3030:
+            print(f"fequency met the requested range: at bit {j} the frequency was: {frequencywanted} ")
+        # turning off uo channels
+        ui_in_val= await send_spi_transaction(dut, 1, 0x00, 0)
+        ui_in_val= await send_spi_transaction(dut, 1, 0x02, 0)
+
+
     dut._log.info("PWM Frequency test completed successfully")
 
 
 @cocotb.test()
 async def test_pwm_duty(dut):
     # Write your test here
+
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+
+
+    dut._log.info("Reset")
+    dut.ena.value = 1
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+    
+
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x00)
+    for i in range(3):
+        if i==0:
+            print( "Duty 0% tests:")
+            ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x00)
+        elif i==1:
+            print( "Duty 50% tests:")
+            ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x80)
+        elif i==2:
+            print( "Duty 100% tests:")
+            ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0xFF)
+        #replication of frequency tests but this time caring for duty instead of frequency
+        print("duty tests at uio:")
+        for j in range(8):
+            ui_in_val= await send_spi_transaction(dut, 1, 0x01, 1 << j)
+            ui_in_val= await send_spi_transaction(dut, 1, 0x03, 1<<j)
+            extra, dutywanted = await PWM_sampling(dut, dut.uio_out, j, 4)
+
+            print(f"duty being tested for is 0% : at bit {j} the duty was: {dutywanted}% ")
+            ui_in_val= await send_spi_transaction(dut, 1, 0x01, 0)
+            ui_in_val= await send_spi_transaction(dut, 1, 0x03, 0)
+        
+        print("duty tests at uo:")
+        for j in range(8):
+            ui_in_val= await send_spi_transaction(dut, 1, 0x00, 1 << j)
+            ui_in_val= await send_spi_transaction(dut, 1, 0x02, 1<<j)
+            frequencywanted, extra = await PWM_sampling(dut, dut.uo_out, j, 4)
+
+            print(f"duty being tested for is 0% : at bit {j} the duty was: {dutywanted}% ")
+            ui_in_val= await send_spi_transaction(dut, 1, 0x00, 0)
+            ui_in_val= await send_spi_transaction(dut, 1, 0x02, 0)
+
+
     dut._log.info("PWM Duty Cycle test completed successfully")
